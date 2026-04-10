@@ -10,30 +10,68 @@ import os
 import webbrowser
 from flask import Flask, request
 import logging
-try:
-    pygame.mixer.init()
-    has_audio_hardware = True
-except pygame.error:
-    os.environ['SDL_AUDIODRIVER'] = 'dummy'
-    pygame.mixer.init()
-    has_audio_hardware = False
-pygame.mixer.init()
+
+#Variables
+
+sound_enabled = True
+
+character = ""
+
+sibling = ""
+
+result = 0
+
+usedElementalSkill = "False"
+
+elementalParticles = 0
+
+enemyHP = 0
+
+health = 100
+
+level = 1
+
+xp = 0
+
+food_inventory = []
+
+inventory = []
+
+max_attk = 5
+
+defense = 5
+
+mora = 0
+
+story_progress = 0
+
+#easter eggs
+
+paimon_trust = 100
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
+
+import threading
 
 def play_sound_and_wait(play_url):
     global sound_enabled
     if not sound_enabled:
         return
 
-    app = Flask(__name__)
+    # Use a flag to tell the game when to continue
+    waiting_for_audio = threading.Event()
 
-    # This is the "Bridge" - when the tab closes, it hits this URL
+    app = Flask(__name__)
+    
+    # Hide the annoying "Statue" messages in terminal
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+
     @app.route('/close')
     def close():
-        func = request.environ.get('werkzeug.server.shutdown')
-        if func: func()
-        return "Game Resuming..."
+        waiting_for_audio.set() # This "unlocks" the game
+        return "Resuming game... you can close this tab."
 
     @app.route('/')
     def index():
@@ -42,9 +80,7 @@ def play_sound_and_wait(play_url):
         <body style="background-color: #121212; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; margin: 0;">
             <div style="text-align: center; border: 2px solid #3d3d3d; padding: 50px; border-radius: 20px; background: #1e1e1e;">
                 <h1 style="color: #ffd45e;">Paimon is speaking...</h1>
-                <audio id="player" autoplay controls style="margin: 20px 0;">
-                    <source src="{play_url}" type="audio/mpeg">
-                </audio>
+                <audio id="player" autoplay controls><source src="{play_url}" type="audio/mpeg"></audio>
                 <br><br>
                 <button onclick="finish()" style="padding: 15px 30px; font-size: 18px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 10px;">
                     DONE (Continue Game)
@@ -52,24 +88,27 @@ def play_sound_and_wait(play_url):
             </div>
             <script>
                 function finish() {{
-                    // Tell Python to continue
-                    fetch('/close').then(() => {{
-                        // Close this tab
-                        window.close();
-                    }});
+                    fetch('/close').then(() => {{ window.close(); }});
                 }}
-                // Auto-finish if audio ends (optional)
                 document.getElementById('player').onended = finish;
             </script>
         </body>
         </html>
         """
 
-    # Open the browser to our local bridge
+    # Start Flask in a background thread so it doesn't freeze the script
+    server_thread = threading.Thread(target=app.run, kwargs={'port': 5000, 'debug': False, 'use_reloader': False})
+    server_thread.daemon = True # This ensures the server dies when the game eventually ends
+    server_thread.start()
+
+    # Open the browser
     webbrowser.open("http://127.0.0.1:5000")
     
-    # This line PAUSES the entire script until the '/close' route is hit
-    app.run(port=5000)
+    print("Waiting for Paimon to finish speaking...")
+    
+    # This PAUSES the game until you click "DONE"
+    waiting_for_audio.wait() 
+    print("Continuing journey!")
 
 def sp(text, play_url=None, speed=0.03, width=30, wait=1):
     wrapped_text = textwrap.fill(text, width=width)
