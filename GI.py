@@ -2,7 +2,6 @@ import time
 import textwrap
 import random
 import json
-import pygame
 import threading
 import requests
 import tempfile
@@ -10,11 +9,10 @@ import os
 import webbrowser
 from flask import Flask, request
 import logging
+import socket
+import signal
 
 #Variables
-
-sound_enabled = True
-
 character = ""
 
 sibling = ""
@@ -49,71 +47,132 @@ story_progress = 0
 
 paimon_trust = 100
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+# =========================
+# GLOBAL AUDIO SYSTEM STATE
+# =========================
+# =========================
+# AUDIO SYSTEM (FIXED)
+# =========================
+# =========================
+# AUDIO SYSTEM
+# =========================
 
-import threading
+app = Flask(__name__)
 
-def play_sound_and_wait(play_url):
-    global sound_enabled
-    if not sound_enabled:
-        return
+audio_event = threading.Event()
 
-    # Use a flag to tell the game when to continue
-    waiting_for_audio = threading.Event()
+current_audio = {
+    "url": None,
+    "ready": False
+}
 
-    app = Flask(__name__)
-    
-    # Hide the annoying "Statue" messages in terminal
-    import logging
+# -------------------------
+# FLASK ROUTES
+# -------------------------
+
+@app.route("/")
+def index():
+    # This page stays open and "polls" the server for new audio
+    return """
+    <html>
+    <body style="background:#111;color:white;text-align:center;padding-top:20vh;font-family:sans-serif;">
+        <h2 id="status">🎧 Audio Bridge Active</h2>
+        <p>Keep this tab open to hear the game dialogue.</p>
+        <audio id="player"></audio>
+        <script>
+            const player = document.getElementById('player');
+            const status = document.getElementById('status');
+
+            async function checkAudio() {
+                try {
+                    const response = await fetch('/get_next_audio');
+                    const data = await response.json();
+                    
+                    if (data.url) {
+                        status.innerText = "🔊 Playing Dialogue...";
+                        player.src = data.url;
+                        player.play();
+                        player.onended = () => {
+                            status.innerText = "🎧 Waiting for next line...";
+                            fetch('/mark_done');
+                        };
+                    }
+                } catch (e) {}
+            }
+            // Check for new audio every 500ms
+            setInterval(checkAudio, 500);
+        </script>
+    </body>
+    </html>
+    """
+
+@app.route("/get_next_audio")
+@app.route("/get_next_audio")
+def get_next():
+    global current_audio
+    # If there is a sound and it hasn't been "claimed" by the browser yet
+    if current_audio["ready"] and current_audio["url"]:
+        url = current_audio["url"]
+        
+        # KEY FIX: Immediately set ready to False so it doesn't loop
+        current_audio["ready"] = False 
+        
+        return json.dumps({"url": url})
+    return json.dumps({"url": None})
+
+@app.route("/mark_done")
+def mark_done():
+    # This stays the same to tell the Python script to continue the text
+    audio_event.set()
+    return "ok"
+
+def done():
+    current_audio["ready"] = False
+    audio_event.set()
+    return "ok"
+
+# -------------------------
+# START SERVER (ONLY ONCE)
+# -------------------------
+
+def start_audio_server():
+    # This disables the "Running on http..." and request logs
     log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
+    log.setLevel(logging.ERROR) 
+    app.run(port=5000, debug=False, use_reloader=False)
 
-    @app.route('/close')
-    def close():
-        waiting_for_audio.set() # This "unlocks" the game
-        return "Resuming game... you can close this tab."
+threading.Thread(target=start_audio_server, daemon=True).start()
 
-    @app.route('/')
-    def index():
-        return f"""
-        <html>
-        <body style="background-color: #121212; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; margin: 0;">
-            <div style="text-align: center; border: 2px solid #3d3d3d; padding: 50px; border-radius: 20px; background: #1e1e1e;">
-                <h1 style="color: #ffd45e;">Paimon is speaking...</h1>
-                <audio id="player" autoplay controls><source src="{play_url}" type="audio/mpeg"></audio>
-                <br><br>
-                <button onclick="finish()" style="padding: 15px 30px; font-size: 18px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 10px;">
-                    DONE (Continue Game)
-                </button>
-            </div>
-            <script>
-                function finish() {{
-                    fetch('/close').then(() => {{ window.close(); }});
-                }}
-                document.getElementById('player').onended = finish;
-            </script>
-        </body>
-        </html>
-        """
+# -------------------------
+# PLAY FUNCTION
+# -------------------------
 
-    # Start Flask in a background thread so it doesn't freeze the script
-    server_thread = threading.Thread(target=app.run, kwargs={'port': 5000, 'debug': False, 'use_reloader': False})
-    server_thread.daemon = True # This ensures the server dies when the game eventually ends
-    server_thread.start()
+bridge_opened = False  # Add this variable above the function
 
-    # Open the browser
-    webbrowser.open("http://127.0.0.1:5000")
-    
-    print("Waiting for Paimon to finish speaking...")
-    
-    # This PAUSES the game until you click "DONE"
-    waiting_for_audio.wait() 
-    print("Continuing journey!")
+def play_sound_and_wait(url):
+    global bridge_opened
+    current_audio["url"] = url
+    current_audio["ready"] = True
+    audio_event.clear()
 
+    if not bridge_opened:
+        webbrowser.open("http://127.0.0.1:5000")
+        bridge_opened = True
+
+    # We removed the .wait() from here because the 'sp' function 
+    # now handles the waiting after the text is done printing.
+
+    # Wait for the browser to finish playing and call /mark_done
+    audio_event.wait(timeout=60)
 def sp(text, play_url=None, speed=0.03, width=30, wait=1):
     wrapped_text = textwrap.fill(text, width=width)
     
-    # Print the text first
+    # 1. Start the audio first (if provided)
+    if play_url and sound_enabled:
+        # We start the sound in the background so the text isn't blocked
+        threading.Thread(target=play_sound_and_wait, args=(play_url,), daemon=True).start()
+    
+    # 2. Print the text immediately while the audio starts
     for line in wrapped_text.split("\n"):
         for char in line:
             print(char, end="", flush=True)
@@ -121,12 +180,19 @@ def sp(text, play_url=None, speed=0.03, width=30, wait=1):
         print()
     print()
 
-    # If there is sound, open the bridge and WAIT
+    # 3. Wait for the audio to FINISH before moving to the next line of dialogue
     if play_url and sound_enabled:
-        play_sound_and_wait(play_url)
+        # This waits for the audio_event to be set by the browser/Flask
+        audio_event.wait(timeout=60)
 
     if wait == 1:
         w()
+
+def sound(play_url):
+    if sound_enabled:
+        threading.Thread(target=play_sound_and_wait, args=(play_url,), daemon=True).start()
+        
+
 def selection(options):
     global result
     
@@ -375,7 +441,8 @@ def P1():
     global sibling
     sp("So, what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
     w()
-    sp("But when you wanted to leave, and go on to the next world, your path was blocked, by some unknown god? - Paimon")
+    sp("But when you wanted to leave, and go on to the next world, your path was blocked, by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
+    sound()
     sp("Outlanders... Your journey ends here... - Unknown God")
     sp("The arrogation of mankind ends now. - Unknown god")
     if sibling == "Aether":
@@ -662,7 +729,6 @@ def main():
     print("1. New Game")
     print("2. Load Game")
     selection(2)
-
     if result == 2:
         if not load_game():
             print("No save found. Starting new game.")
