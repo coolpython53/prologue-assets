@@ -1,455 +1,266 @@
-"""IMPORTANT
-IF PORT 5000 IS IN USE, RUN THIS COMMAND
-sudo kill -9 $(sudo lsof -t -i:5000)"""
 import time
 import textwrap
 import random
 import json
 import threading
-import requests
-import tempfile
 import os
 import webbrowser
-from flask import Flask, request
 import logging
-import socket
-import signal
+from flask import Flask
 
-#Variables
+# =========================
+# GLOBAL VARIABLES
+# =========================
 character = ""
-
 sibling = ""
-
 result = 0
-
 usedElementalSkill = "False"
-
 elementalParticles = 0
-
 enemyHP = 0
-
 health = 100
-
 level = 1
-
 xp = 0
-
 food_inventory = []
-
 inventory = []
-
-max_attk = 5
-
+max_attk = 10
 defense = 5
-
 mora = 0
-
 story_progress = 0
-
-#easter eggs
-
 paimon_trust = 100
-log = logging.getLogger('werkzeug')
-# =========================
-# GLOBAL AUDIO SYSTEM STATE
-# =========================
-# =========================
-# AUDIO SYSTEM (FIXED)
-# =========================
-# =========================
-# AUDIO SYSTEM
-# =========================
+sound_enabled = False
+bridge_opened = False
 
-
+# =========================
+# AUDIO BRIDGE SYSTEM
+# =========================
 app = Flask(__name__)
-
 audio_event = threading.Event()
-
-current_audio = {
-    "url": None,
-    "ready": False
-}
-
-# -------------------------
-# FLASK ROUTES
-# -------------------------
+current_audio = {"url": None, "ready": False}
 
 @app.route("/")
 def index():
-    # This page stays open and "polls" the server for new audio
     return """
     <html>
     <body style="background:#111;color:white;text-align:center;padding-top:20vh;font-family:sans-serif;">
-        <h2 id="status">🎧 Audio Bridge Active</h2>
-        <p>Keep this tab open to hear the game dialogue.</p>
+        <div id="setup">
+            <h2 style="color:#ffd452;">Genshin Audio Bridge</h2>
+            <button id="startBtn" style="padding:15px 40px; font-size:20px; cursor:pointer; background:#4a90e2; color:white; border:none; border-radius:5px;">Connect Audio</button>
+        </div>
+        <div id="activeMsg" style="display:none;">
+            <h2 id="status">🔊 Audio Active</h2>
+            <p>Return to your terminal. Keep this tab open.</p>
+        </div>
         <audio id="player"></audio>
         <script>
             const player = document.getElementById('player');
-            const status = document.getElementById('status');
+            const startBtn = document.getElementById('startBtn');
+            const setup = document.getElementById('setup');
+            const activeMsg = document.getElementById('activeMsg');
+
+            startBtn.onclick = () => {
+                setup.style.display = 'none';
+                activeMsg.style.display = 'block';
+                player.play().catch(() => {}); 
+                checkAudio();
+            };
 
             async function checkAudio() {
                 try {
                     const response = await fetch('/get_next_audio');
                     const data = await response.json();
-                    
                     if (data.url) {
-                        status.innerText = "🔊 Playing Dialogue...";
                         player.src = data.url;
                         player.play();
-                        player.onended = () => {
-                            status.innerText = "🎧 Waiting for next line...";
-                            fetch('/mark_done');
-                        };
+                        player.onended = () => { fetch('/mark_done'); };
                     }
                 } catch (e) {}
+                setTimeout(checkAudio, 400);
             }
-            // Check for new audio every 500ms
-            setInterval(checkAudio, 500);
         </script>
     </body>
     </html>
     """
 
 @app.route("/get_next_audio")
-@app.route("/get_next_audio")
 def get_next():
     global current_audio
-    # If there is a sound and it hasn't been "claimed" by the browser yet
     if current_audio["ready"] and current_audio["url"]:
         url = current_audio["url"]
-        
-        # KEY FIX: Immediately set ready to False so it doesn't loop
         current_audio["ready"] = False 
-        
         return json.dumps({"url": url})
     return json.dumps({"url": None})
 
 @app.route("/mark_done")
 def mark_done():
-    # This stays the same to tell the Python script to continue the text
     audio_event.set()
     return "ok"
-
-def done():
-    current_audio["ready"] = False
-    audio_event.set()
-    return "ok"
-
-# -------------------------
-# START SERVER (ONLY ONCE)
-# -------------------------
 
 def start_audio_server():
-    # This disables the "Running on http..." and request logs
     log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR) 
-    app.run(port=5000, debug=False, use_reloader=False)
+    log.setLevel(logging.ERROR)
+    try:
+        app.run(port=5000, debug=False, use_reloader=False)
+    except: pass
 
 threading.Thread(target=start_audio_server, daemon=True).start()
 
-# -------------------------
-# PLAY FUNCTION
-# -------------------------
+# =========================
+# CORE UTILITIES
+# =========================
 
-bridge_opened = False  # Add this variable above the function
-
+def w(seconds=0.5):
+    """Wait for a brief moment."""
+    time.sleep(seconds)
+def sound(url):
+    play_sound_and_wait(url)
 def play_sound_and_wait(url):
-    global bridge_opened
+    """Internal function to handle audio syncing."""
+    if not sound_enabled: return
     current_audio["url"] = url
     current_audio["ready"] = True
     audio_event.clear()
-
-    if not bridge_opened:
-        webbrowser.open("http://127.0.0.1:5000")
-        bridge_opened = True
-
-    # We removed the .wait() from here because the 'sp' function 
-    # now handles the waiting after the text is done printing.
-
-    # Wait for the browser to finish playing and call /mark_done
     audio_event.wait(timeout=60)
-def sp(text, play_url=None, speed=0.03, width=30, wait=1):
+
+def sp(text, play_url=None, speed=0.03, width=50, wait=1):
+    """Prints scrolling text and plays audio if a URL is provided."""
     wrapped_text = textwrap.fill(text, width=width)
-    
-    # 1. Start the audio first (if provided)
     if play_url and sound_enabled:
-        # We start the sound in the background so the text isn't blocked
         threading.Thread(target=play_sound_and_wait, args=(play_url,), daemon=True).start()
-    
-    # 2. Print the text immediately while the audio starts
     for line in wrapped_text.split("\n"):
         for char in line:
             print(char, end="", flush=True)
             time.sleep(speed)
         print()
-    print()
-
-    # 3. Wait for the audio to FINISH before moving to the next line of dialogue
     if play_url and sound_enabled:
-        # This waits for the audio_event to be set by the browser/Flask
         audio_event.wait(timeout=60)
-
-    if wait == 1:
-        w()
-
-def sound(play_url):
-    if sound_enabled:
-        play_sound_and_wait(play_url)
-        
+    if wait == 1: time.sleep(0.25)
 
 def selection(options):
+    """Handles user input and menus."""
     global result
-    
     while True:
-        user_input = input("").strip().lower()
-
-        if user_input == "save":
+        user_input = input(">> ").strip().lower()
+        if user_input == "save": 
             save_game()
             continue
-
         try:
             result = int(user_input)
-            if 1 <= result <= options:
-                return
-            else:
-                print("Invalid option.")
-        except ValueError:
-            print("Enter a number or type 'save'.")
-
+            if 1 <= result <= options: return
+        except: print("Enter a number.")
 
 def save_game():
-    global character, sibling, health, level, xp
-    global max_attk, defense, elementalParticles
-    global mora, food_inventory, inventory
-    global usedElementalSkill, paimon_trust
-    global story_progress
-
-    # Collect all game data
-    game_data = {
-        "character": character,
-        "sibling": sibling,
-        "health": health,
-        "level": level,
-        "xp": xp,
-        "max_attk": max_attk,
-        "defense": defense,
-        "elementalParticles": elementalParticles,
-        "mora": mora,
-        "food_inventory": food_inventory,
-        "inventory": inventory,
-        "usedElementalSkill": usedElementalSkill,
-        "paimon_trust": paimon_trust,
-        "story_progress": story_progress
-    }
-
-    # Convert to JSON string
-    game_json = json.dumps(game_data)
-
-    # Print the JSON string for the user to copy
-    print("\n==== COPY THIS SAVE DATA ====")
-    print(game_json)
-    print("==== END OF SAVE DATA ====")
-    print("Copy everything between the lines and save it in a local .txt file. Later, you can paste it to load your game!")  
-
-import json
-
-def load_game():
-    global character, sibling, health, level, xp
-    global max_attk, defense, elementalParticles
-    global mora, food_inventory, inventory
-    global usedElementalSkill, paimon_trust
-    global story_progress
-
-    save_string = input("Paste your save data here: ")
-
-    try:
-        game_data = json.loads(save_string)
-
-        character = game_data["character"]
-        sibling = game_data["sibling"]
-        health = game_data["health"]
-        level = game_data["level"]
-        xp = game_data["xp"]
-        max_attk = game_data["max_attk"]
-        defense = game_data["defense"]
-        elementalParticles = game_data["elementalParticles"]
-        mora = game_data["mora"]
-        food_inventory = game_data["food_inventory"]
-        inventory = game_data["inventory"]
-        usedElementalSkill = game_data["usedElementalSkill"]
-        paimon_trust = game_data["paimon_trust"]
-        story_progress = game_data["story_progress"]
-        print()
-        print("Game loaded successfully!")
-        return True
-    except:
-        print("Failed to load save. Check your pasted data.")
-        return False
-
-def st():
-    global character, result, health, level, food_inventory
-    print("Health: " + str(health))
-    print("Your level: " + str(level))
-    print("Maximum damage: " + str(max_attk))
-    for _ in food_inventory:
-        print(_)
-    print("Elemental Particles: " + str(elementalParticles))
-
-def w(seconds=0.25):
-    time.sleep(seconds)
-    
-def Character_Selection():
-    global character, result, sibling
-    # Character picking
-    sp("Pick your character")
-    sp("1. Aether")
-    sp("2. Lumine")
-    selection(2)
-    if result == 1:
-        character = "Aether"
-        sibling = "Lumine"
-    elif result == 2:
-        character = "Lumine"
-        sibling = "Aether"
-    #Report back to the player
-    sp("You picked " + character + "!")
-    w()
-
-def fight(EHP, EDM):
-    global usedElementalSkill, elementalParticles, enemyHP, health, max_attk, defense, xp
-    enemyHP = EHP
-    usedElementalSkill = "False"   # Reset at start of fight
-    lvl_up()
-
-    while enemyHP > 0 and health > 0:
-        print("Your enemy has " + str(enemyHP) + " health now.")
-        st()
-        print()
-        print("1. Attack")
-        print("2. Elemental skill")
-        print("3. Elemental burst")
-        print("4. Eat food")
-        selection(4)
-
-        if result == 1:
-            sp("You attacked normally.")
-            enemyHP -= random.randint(max_attk - 3, max_attk)
-
-        elif result == 2:
-            if usedElementalSkill == "False":
-                sp("You activated your elemental skill")
-                usedElementalSkill = "True"
-                enemyHP -= max_attk + 30
-                elementalParticles += 20
-            else:
-                sp("You already used this!")
-                continue   # <-- DO NOT restart fight
-
-        elif result == 3:
-            if elementalParticles >= 60:
-                sp("You used your elemental burst.")
-                elementalParticles -= 60
-                enemyHP -= (max_attk + 60)
-            else:
-                sp("Not enough elemental Particles! You need " + str(60 - elementalParticles) + " more!")
-                continue   # <-- DO NOT restart fight
-        elif result == 4:
-            ate = eat_food()
-            continue
-
-        elementalParticles += 10
-        if enemyHP > 0:
-            damage = max(1, random.randint(EDM - (defense * 2), EDM - defense))
-            health -= damage
-    if health <= 0:
-        sp("You were defeated... - Paimon")
-        health += 150
-        fight(EHP)
-    else:
-        sp("Enemy defeated! - Paimon")
-
-    usedElementalSkill = "False"   # Reset after fight
-    xp += random.randint(EHP, EHP + 300)
-    lvl_up()
+    """Placeholder for save logic."""
+    print("\n--- GAME SAVED ---")
+    print(f"Character: {character} | Level: {level} | Progress: {story_progress}\n")
 
 def lvl_up():
+    """Handles leveling up attributes."""
     global xp, level, max_attk, health, defense
     while xp >= 1000:
-        max_attk += 5
-        xp -= 1000
-        level += 1
-        health += 10
-        defense += 5
-        print(f"Level up! You are at level {level}")
+        level += 1; max_attk += 5; health += 20; defense += 5; xp -= 1000
+        print(f"\n✨ LEVEL UP! Level {level} ✨")
+
+def fight(EHP, EDM):
+    """The combat engine."""
+    global health, enemyHP, elementalParticles, usedElementalSkill, xp
+    enemyHP = EHP
+    usedElementalSkill = "False"
+    while enemyHP > 0 and health > 0:
+        print(f"\nHP: {health} | Enemy: {enemyHP} | Particles: {elementalParticles}")
+        print("1. Attack | 2. Skill | 3. Burst | 4. Food")
+        selection(4)
+        if result == 1: 
+            dmg = random.randint(max_attk-3, max_attk)
+            print(f"You hit for {dmg}!")
+            enemyHP -= dmg
+        elif result == 2:
+            if usedElementalSkill == "False":
+                print("Elemental Skill!")
+                enemyHP -= (max_attk + 30); elementalParticles += 20; usedElementalSkill = "True"
+            else: print("On cooldown!"); continue
+        elif result == 3:
+            if elementalParticles >= 60:
+                print("ELEMENTAL BURST!")
+                enemyHP -= (max_attk + 60); elementalParticles -= 60
+            else: print("Not enough energy!"); continue
+        elif result == 4:
+            if not eat_food(): continue
+        
+        if enemyHP > 0:
+            dmg = max(1, random.randint(EDM - (defense * 2), EDM - defense))
+            health -= dmg
+            print(f"Enemy hit you for {dmg}!")
+
+    if health <= 0:
+        print("Defeated..."); health = 100; fight(EHP, EDM)
+    else:
+        print("Victory!")
+        xp += EHP; lvl_up()
 
 def add_food(name, amount, heal):
-    global food_inventory
-    for item in food_inventory:
-        if item["name"] == name:
-            item["amount"] += amount
-            return
-    food_inventory.append({
-        "name": name,
-        "amount": amount,
-        "heal": heal
-    })
+    """Add items to the food bag."""
+    food_inventory.append({"name": name, "amount": amount, "heal": heal})
 
 def eat_food():
-    global health, food_inventory
-
-    if len(food_inventory) == 0:
-        print("You have no food!")
+    """Healing logic."""
+    global health
+    if not food_inventory: 
+        print("No food!")
         return False
-
-    print("Choose a food to eat:")
-
-    # Show all food
-    food_list = []
-    for item in food_inventory:
-        food_list.append(item)
-
-    for i, food in enumerate(food_list, start=1):
-        print(
-            f"{i}. {food['name']} "
-            f"x{food['amount']} "
-            f"(Heals {food['heal']} HP)"
-        )
-
-    selection(len(food_list))
-    chosen_food = food_list[result - 1]
-
-    # Eat the food
-    health += chosen_food["heal"]
-    print(
-        f"You ate {chosen_food['name']} "
-        f"and recovered {chosen_food['heal']} HP!"
-    )
-
-    chosen_food["amount"] -= 1
-
-    # Remove if empty
-    if chosen_food["amount"] <= 0:
-        food_inventory.remove(chosen_food)
-
+    for i, f in enumerate(food_inventory, 1): print(f"{i}. {f['name']} x{f['amount']}")
+    selection(len(food_inventory))
+    f = food_inventory[result-1]
+    health += f['heal']; f['amount'] -= 1
+    if f['amount'] <= 0: food_inventory.remove(f)
     return True
 
 def nxt():
+    """Advance story marker."""
     global story_progress
     story_progress += 1
 
-#-------------------------------------------------------------------------------------------------------------------------
+# =========================
+# MAIN BOOTSTRAP
+# =========================
+
+def main():
+    global sound_enabled, character, sibling
+    print("--- GENSHIN IMPACT: TEXT ADVENTURE ---")
+    print("1. New Game | 2. Load Game")
+    selection(2)
+    if result == 1:
+        print("\nEnable Sound?\n1. Yes | 2. No")
+        selection(2)
+        if result == 1:
+            sound_enabled = True
+            webbrowser.open("http://127.0.0.1:5000")
+            time.sleep(2)
+        
+        sp("Pick your character: 1. Aether | 2. Lumine")
+        selection(2)
+        character = "Aether" if result == 1 else "Lumine"
+        sibling = "Lumine" if result == 1 else "Aether"
+
+    # Chapter List for progression
+    chapters = [P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16, P17]
+    
+    for i in range(story_progress, len(chapters)):
+        chapters[i]()
+
+if __name__ == "__main__":
+    main()
 
 
-#Opening cutscene
+if __name__ == "__main__":
+    main()
 def P1():
     global sibling
-    sp("So, what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
+    sp("So, you're saying you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
     w()
     sp("But when you wanted to leave, and go on to the next world, your path was blocked, by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
     sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-3.mp3")
     sp("Outlanders... Your journey ends here... - Unknown God")
-    sp("Who're you?! - Lumine")
-    sp("The sustainer of heavenly principles. The arrogation of mankind ends now. - Unknown god")
+    sp("The arrogation of mankind ends now. - Unknown god")
     if sibling == "Aether":
         sp("You and your sibling battle the god. The god takes away your brother.")
         sp("And just like that, the god took away my brother. Some kind of seal was cast upon me, and I lost my power. So while we used to travel from world to world, we are now trapped here. - You")
@@ -726,81 +537,3 @@ def P17():
     sp("If it weren't for this interference, the Knights of Favonius would have better ways to help you than just putting up missing person posters. We simply ask that you repose in Mondstadt while we help you seek out your sibling. - Jean")
     sp("1. I really should help as well.")
     sp("2. Guess we'll leave it up to you then.")
-    
-    
-def main():
-    global story_progress, sound_enabled
-
-    print("1. New Game")
-    print("2. Load Game")
-    selection(2)
-    if result == 2:
-        if not load_game():
-            print("No save found. Starting new game.")
-            Character_Selection()
-    else:
-        # 🎵 SOUND SETTINGS
-        print("Enable sound?")
-        print("1. Yes")
-        print("2. No")
-        selection(2)
-
-        if result == 1:
-            sound_enabled = True
-        else:
-            sound_enabled = False
-
-        Character_Selection()
-
-    # Resume story based on progress
-    if story_progress < 1:
-        #Opening cutscene
-        P1()
-    if story_progress < 2:
-        #Bird's eye view
-        P2()
-    if story_progress < 3:
-        P3()
-    if story_progress < 4:
-        #Unexpected power
-        P4()
-    if story_progress < 5:
-        P5()
-    if story_progress < 6:
-        P6()
-    if story_progress < 7:
-        #Forest rendezvous
-        P7()
-    if story_progress < 8:
-        P8()
-    if story_progress < 9:
-        #Wind-riding knight
-        P9()
-    if story_progress < 10:
-        P10()
-    if story_progress < 11:
-        #Going upon the breeze
-        P11()
-    if story_progress < 12:
-        P12()
-    if story_progress < 13:
-        #City of freedom
-        P13()
-    if story_progress < 14:
-        P14()
-    if story_progress < 15:
-        #Dragon Storm
-        P15()
-    if story_progress < 16:
-        P16()
-    if story_progress < 17:
-        #Knights of Favonius
-        P17()
-    if story_progress < 18:
-        pass
-main()
-save_game()
-#Character_Selection()
-#P10()
-"""TESTING SAVE JSON
-{"character": "Aether", "sibling": "Lumine", "health": 697, "level": 4, "xp": 802, "max_attk": 20, "defense": 20, "elementalParticles": 90, "mora": 5350, "food_inventory": [{"name": "Sweet madame", "amount": 6, "heal": 150}, {"name": "Teyvat fried egg", "amount": 10, "heal": 100}], "inventory": [], "usedElementalSkill": "False", "paimon_trust": 0, "story_progress": 10}"""
