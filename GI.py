@@ -1,3 +1,6 @@
+"""IMPORTANT
+IF PORT 5000 IS IN USE, RUN THIS COMMAND
+sudo kill -9 $(sudo lsof -t -i:5000)"""
 import time
 import textwrap
 import random
@@ -56,6 +59,7 @@ log = logging.getLogger('werkzeug')
 # =========================
 # AUDIO SYSTEM
 # =========================
+
 
 app = Flask(__name__)
 
@@ -190,7 +194,7 @@ def sp(text, play_url=None, speed=0.03, width=30, wait=1):
 
 def sound(play_url):
     if sound_enabled:
-        threading.Thread(target=play_sound_and_wait, args=(play_url,), daemon=True).start()
+        play_sound_and_wait(play_url)
         
 
 def selection(options):
@@ -442,9 +446,10 @@ def P1():
     sp("So, what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
     w()
     sp("But when you wanted to leave, and go on to the next world, your path was blocked, by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
-    sound()
+    sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-3.mp3")
     sp("Outlanders... Your journey ends here... - Unknown God")
-    sp("The arrogation of mankind ends now. - Unknown god")
+    sp("Who're you?! - Lumine")
+    sp("The sustainer of heavenly principles. The arrogation of mankind ends now. - Unknown god")
     if sibling == "Aether":
         sp("You and your sibling battle the god. The god takes away your brother.")
         sp("And just like that, the god took away my brother. Some kind of seal was cast upon me, and I lost my power. So while we used to travel from world to world, we are now trapped here. - You")
