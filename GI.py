@@ -134,6 +134,7 @@ def sp(text, play_url=None, speed=0.03, width=50, wait=1):
     if play_url and sound_enabled:
         audio_event.wait(timeout=60)
     if wait == 1: time.sleep(0.25)
+    print()
 
 def selection(options):
     """Handles user input and menus."""
@@ -247,12 +248,7 @@ def main():
     for i in range(story_progress, len(chapters)):
         chapters[i]()
 
-if __name__ == "__main__":
-    main()
 
-
-if __name__ == "__main__":
-    main()
 def P1():
     global sibling
     sp("So, you're saying you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
@@ -537,3 +533,5 @@ def P17():
     sp("If it weren't for this interference, the Knights of Favonius would have better ways to help you than just putting up missing person posters. We simply ask that you repose in Mondstadt while we help you seek out your sibling. - Jean")
     sp("1. I really should help as well.")
     sp("2. Guess we'll leave it up to you then.")
+if __name__ == "__main__":
+    main()
