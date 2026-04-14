@@ -251,12 +251,13 @@ def main():
 
 def P1():
     global sibling
-    sp("So, you're saying you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
+    sp("So... what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
     w()
-    sp("But when you wanted to leave, and go on to the next world, your path was blocked, by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
+    sp("But when you wanted to leave, and go on to the next world, your path was blocked by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
     sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-3.mp3")
-    sp("Outlanders... Your journey ends here... - Unknown God")
-    sp("The arrogation of mankind ends now. - Unknown god")
+    sp("Outlanders... Your journey ends here... - Unknown God", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Asmoday-4.mp3")
+    sp("Who're you?!", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-5.mp3")
+    sp("The sustainer of heavanly principles. The arrogation of mankind ends now. - Unknown god", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Asmoday-6.mp3")
     if sibling == "Aether":
         sp("You and your sibling battle the god. The god takes away your brother.")
         sp("And just like that, the god took away my brother. Some kind of seal was cast upon me, and I lost my power. So while we used to travel from world to world, we are now trapped here. - You")
