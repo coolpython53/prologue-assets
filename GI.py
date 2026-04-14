@@ -7,6 +7,8 @@ import os
 import webbrowser
 import logging
 from flask import Flask
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # =========================
 # GLOBAL VARIABLES
@@ -31,28 +33,61 @@ sound_enabled = False
 bridge_opened = False
 
 # =========================
-# AUDIO BRIDGE SYSTEM
+# 🎧 AUDIO BRIDGE SYSTEM
 # =========================
+
+
 app = Flask(__name__)
+
+# =========================
+# 🔊 SFX SYSTEM (voice / effects)
+# =========================
 audio_event = threading.Event()
-current_audio = {"url": None, "ready": False}
+
+current_audio = {
+    "url": None,
+    "ready": False
+}
+
+# =========================
+# 🎵 MUSIC SYSTEM (background layer)
+# =========================
+current_music = {
+    "url": None,
+    "playing": False,
+    "loop": True
+}
+
+# =========================
+# 🌐 FLASK ROUTES
+# =========================
 
 @app.route("/")
 def index():
     return """
     <html>
     <body style="background:#111;color:white;text-align:center;padding-top:20vh;font-family:sans-serif;">
+
         <div id="setup">
-            <h2 style="color:#ffd452;">Genshin Audio Bridge</h2>
-            <button id="startBtn" style="padding:15px 40px; font-size:20px; cursor:pointer; background:#4a90e2; color:white; border:none; border-radius:5px;">Connect Audio</button>
+            <h2 style="color:#ffd452;">Audio Bridge</h2>
+            <button id="startBtn"
+                style="padding:15px 40px;font-size:20px;cursor:pointer;background:#4a90e2;color:white;border:none;border-radius:5px;">
+                Connect Audio
+            </button>
         </div>
+
         <div id="activeMsg" style="display:none;">
-            <h2 id="status">🔊 Audio Active</h2>
-            <p>Return to your terminal. Keep this tab open.</p>
+            <h2>🔊 Audio Active</h2>
+            <p>Keep this tab open.</p>
         </div>
-        <audio id="player"></audio>
+
+        <audio id="sfxPlayer"></audio>
+        <audio id="musicPlayer"></audio>
+
         <script>
-            const player = document.getElementById('player');
+            const sfxPlayer = document.getElementById('sfxPlayer');
+            const musicPlayer = document.getElementById('musicPlayer');
+
             const startBtn = document.getElementById('startBtn');
             const setup = document.getElementById('setup');
             const activeMsg = document.getElementById('activeMsg');
@@ -60,50 +95,132 @@ def index():
             startBtn.onclick = () => {
                 setup.style.display = 'none';
                 activeMsg.style.display = 'block';
-                player.play().catch(() => {}); 
-                checkAudio();
+
+                sfxPlayer.play().catch(() => {});
+                musicPlayer.play().catch(() => {});
+
+                checkSFX();
+                checkMusic();
             };
 
-            async function checkAudio() {
+            // =========================
+            // 🔊 SFX LOOP
+            // =========================
+            async function checkSFX() {
                 try {
-                    const response = await fetch('/get_next_audio');
-                    const data = await response.json();
+                    const res = await fetch('/get_next_audio');
+                    const data = await res.json();
+
                     if (data.url) {
-                        player.src = data.url;
-                        player.play();
-                        player.onended = () => { fetch('/mark_done'); };
+                        sfxPlayer.src = data.url;
+                        sfxPlayer.play();
+                        sfxPlayer.onended = () => fetch('/mark_done');
                     }
                 } catch (e) {}
-                setTimeout(checkAudio, 400);
+
+                setTimeout(checkSFX, 300);
+            }
+
+            // =========================
+            // 🎵 MUSIC LOOP
+            // =========================
+            async function checkMusic() {
+                try {
+                    const res = await fetch('/get_music');
+                    const data = await res.json();
+
+                    if (data.url) {
+                        if (musicPlayer.src !== data.url) {
+                            musicPlayer.src = data.url;
+                            musicPlayer.loop = data.loop;
+                            musicPlayer.play().catch(() => {});
+                        }
+                    } else {
+                        musicPlayer.pause();
+                        musicPlayer.src = "";
+                    }
+                } catch (e) {}
+
+                setTimeout(checkMusic, 1000);
             }
         </script>
+
     </body>
     </html>
     """
 
+
+# =========================
+# 🔊 SFX ROUTES
+# =========================
+
 @app.route("/get_next_audio")
-def get_next():
+def get_next_audio():
     global current_audio
     if current_audio["ready"] and current_audio["url"]:
         url = current_audio["url"]
-        current_audio["ready"] = False 
+        current_audio["ready"] = False
         return json.dumps({"url": url})
     return json.dumps({"url": None})
+
 
 @app.route("/mark_done")
 def mark_done():
     audio_event.set()
     return "ok"
 
-def start_audio_server():
-    log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
-    try:
-        app.run(port=5000, debug=False, use_reloader=False)
-    except: pass
 
-threading.Thread(target=start_audio_server, daemon=True).start()
+# =========================
+# 🎵 MUSIC ROUTE
+# =========================
 
+@app.route("/get_music")
+def get_music():
+    global current_music
+    if current_music["playing"] and current_music["url"]:
+        return json.dumps({
+            "url": current_music["url"],
+            "loop": current_music["loop"]
+        })
+    return json.dumps({"url": None, "loop": False})
+
+
+# =========================
+# 🎧 PYTHON AUDIO FUNCTIONS
+# =========================
+
+def play_sound_and_wait(url):
+    """Blocking SFX (voice lines / effects)."""
+    if not sound_enabled:
+        return
+    current_audio["url"] = url
+    current_audio["ready"] = True
+    audio_event.clear()
+    audio_event.wait(timeout=60)
+
+
+def sound(url):
+    play_sound_and_wait(url)
+
+
+
+# =========================
+# 🎵 MUSIC CONTROL API
+# =========================
+
+def music(url, loop=True):
+    """Start background music (non-blocking)."""
+    global current_music
+    current_music["url"] = url
+    current_music["playing"] = True
+    current_music["loop"] = loop
+
+
+def stop_music():
+    """Stop background music."""
+    global current_music
+    current_music["playing"] = False
+    current_music["url"] = None
 # =========================
 # CORE UTILITIES
 # =========================
@@ -111,15 +228,6 @@ threading.Thread(target=start_audio_server, daemon=True).start()
 def w(seconds=0.5):
     """Wait for a brief moment."""
     time.sleep(seconds)
-def sound(url):
-    play_sound_and_wait(url)
-def play_sound_and_wait(url):
-    """Internal function to handle audio syncing."""
-    if not sound_enabled: return
-    current_audio["url"] = url
-    current_audio["ready"] = True
-    audio_event.clear()
-    audio_event.wait(timeout=60)
 
 def sp(text, play_url=None, speed=0.03, width=50, wait=1):
     """Prints scrolling text and plays audio if a URL is provided."""
@@ -251,6 +359,7 @@ def main():
 
 def P1():
     global sibling
+    music("https://coolpython53.github.io/prologue-assets/wanderer's-trail/music/encounter_with_the_unknown_god")
     sp("So... what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
     w()
     sp("But when you wanted to leave, and go on to the next world, your path was blocked by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
@@ -267,7 +376,13 @@ def P1():
         sp("And just like that, the god took away my sister. Some kind of seal was cast upon me, and I lost my power. So while we used to cross to world after world, we are now trapped here. - You", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-7.mp3")   
         sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-8.mp3")
     sp("How many years ago was it? I don't know... But I intend to find out. When I woke, I was all alone... Until I met you two months ago.- You")
-    sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-9.mp3")
+    if sibling == "Aether":
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-9.mp3")
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-10.mp3")
+    elif sibling == "Lumine":
+        
+        pass
+    stop_music()
     sp("Yeah, Paimon really owes you for that. Otherwise Paimon might have drowned... - Paimon")
     sp("So Paimon will do her best to be a great guide! - Paimon")
     sp("We should head off. Let's get going! - Paimon")
@@ -538,4 +653,11 @@ def P17():
     sp("1. I really should help as well.")
     sp("2. Guess we'll leave it up to you then.")
 if __name__ == "__main__":
+    # start Flask FIRST in background thread
+    threading.Thread(
+        target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False),
+        daemon=True
+    ).start()
+
+    # run game in MAIN thread (so input() works)
     main()
