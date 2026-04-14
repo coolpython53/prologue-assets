@@ -260,11 +260,14 @@ def P1():
     sp("The sustainer of heavanly principles. The arrogation of mankind ends now. - Unknown god", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Asmoday-6.mp3")
     if sibling == "Aether":
         sp("You and your sibling battle the god. The god takes away your brother.")
-        sp("And just like that, the god took away my brother. Some kind of seal was cast upon me, and I lost my power. So whilst we used to travel from world to world, we are now trapped here. - You")
+        sp("And just like that, the god took away my brother. Some kind of seal was cast upon me, and I lost my power. So whilst we used to travel from world to world, we are now trapped here. - You", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-7.mp3")
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-8.mp3")
     elif sibling == "Lumine":
         sp("You and your sibling battle the god. The god takes away your sister.")
-        sp("And just like that, the god took away my sister. Some kind of seal was cast upon me, and I lost my power. So while we used to cross to world after world, we are now trapped here. - You")   
+        sp("And just like that, the god took away my sister. Some kind of seal was cast upon me, and I lost my power. So while we used to cross to world after world, we are now trapped here. - You", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-7.mp3")   
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-8.mp3")
     sp("How many years ago was it? I don't know... But I intend to find out. When I woke, I was all alone... Until I met you two months ago.- You")
+    sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-9.mp3")
     sp("Yeah, Paimon really owes you for that. Otherwise Paimon might have drowned... - Paimon")
     sp("So Paimon will do her best to be a great guide! - Paimon")
     sp("We should head off. Let's get going! - Paimon")
