@@ -209,18 +209,20 @@ def sound(url):
 # =========================
 
 def music(url, loop=True):
-    """Start background music (non-blocking)."""
-    global current_music
-    current_music["url"] = url
-    current_music["playing"] = True
-    current_music["loop"] = loop
+    if sound_enabled:
+        """Start background music (non-blocking)."""
+        global current_music
+        current_music["url"] = url
+        current_music["playing"] = True
+        current_music["loop"] = loop
 
 
 def stop_music():
-    """Stop background music."""
-    global current_music
-    current_music["playing"] = False
-    current_music["url"] = None
+    if sound_enabled:
+        """Stop background music."""
+        global current_music
+        current_music["playing"] = False
+        current_music["url"] = None
 # =========================
 # CORE UTILITIES
 # =========================
@@ -343,6 +345,14 @@ def main():
         if result == 1:
             sound_enabled = True
             webbrowser.open("http://127.0.0.1:5000")
+            print("Did it open?")
+            print("1. Yes")
+            selection(1)
+            if result == 1:
+                pass
+            elif result == 2:
+                sound_enabled = False
+                print("Sound turned off")
             time.sleep(2)
         
         sp("Pick your character: 1. Aether | 2. Lumine")
@@ -351,7 +361,8 @@ def main():
         sibling = "Lumine" if result == 1 else "Aether"
 
     # Chapter List for progression
-    chapters = [P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16, P17]
+    chapters = [#P1, 
+                P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16, P17]
     
     for i in range(story_progress, len(chapters)):
         chapters[i]()
@@ -392,15 +403,20 @@ def P1():
 
 #Bird's eye view (The outlander who caught wind)
 def P2():
+    music("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/music/Hence%2C-begins-the-journey.mp3")
     sp("Quest: You begin your journey in Starfell Valley, exploring the land and seeing its sights together with Paimon.")
     sp("Oh wowwwww! That's a statue of the seven! There are a few of those statues scattered across the land to show The Seven's protection over the world. - Paimon", "https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-1.mp3")
-    
+    sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-2.mp3")
+    sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-2.5.ogg")
     sp("Among the gods, this one controls the wind. Paimon's not sure whether the god you're looking for is the Anemo God, but... - Paimon")
+    sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-3.ogg")
     sp("Paimon'll take you to the Anemo God's place first! - Paimon")
+    stop_music()
     nxt()
 
 def P3():
     global mora, xp, result
+    music("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/music/Acquaintance-(Statue-of-The-Seven).mp3")
     sp("1. Follow Paimon")
     sp("2. Walk in the other direction.")
     selection(2)
@@ -412,10 +428,12 @@ def P3():
         sp("Whether the gods actually answer you is a different story. You never know unless you try. - Paimon")
         sp("You go over to the lake where Paimon is waiting.")
         sp("So, let's hop to it! You can swim right over!")
+        stop_music()
     elif result == 2:
         sp("Hey! Where are you going? Come to Paimon! Don't stray too far from Paimon! - Paimon")
         sp("You should follow Paimon for now... - Paimon")
         sp("You go to Paimon.")
+
         P3()
     mora += 975
     xp += 500
