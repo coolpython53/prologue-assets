@@ -359,11 +359,11 @@ def main():
 
 def P1():
     global sibling
-    music("https://coolpython53.github.io/prologue-assets/wanderer's-trail/music/encounter_with_the_unknown_god")
-    sp("So... what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-1.mp3")
+    music("https://coolpython53.github.io/prologue-assets/wanderer's-trail/music/encounter_with_the_unknown_god.mp3")
+    sp("So... what you're trying to say is that you fell here... from another world? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Paimon-1.mp3")
     w()
-    sp("But when you wanted to leave, and go on to the next world, your path was blocked by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-2.mp3")
-    sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/paimon-3.mp3")
+    sp("But when you wanted to leave, and go on to the next world, your path was blocked by some unknown god? - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Paimon-2.mp3")
+    sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Paimon-3.mp3")
     sp("Outlanders... Your journey ends here... - Unknown God", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Asmoday-4.mp3")
     sp("Who're you?!", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-5.mp3")
     sp("The sustainer of heavanly principles. The arrogation of mankind ends now. - Unknown god", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Asmoday-6.mp3")
@@ -375,17 +375,19 @@ def P1():
         sp("You and your sibling battle the god. The god takes away your sister.")
         sp("And just like that, the god took away my sister. Some kind of seal was cast upon me, and I lost my power. So while we used to cross to world after world, we are now trapped here. - You", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-7.mp3")   
         sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-8.mp3")
-    sp("How many years ago was it? I don't know... But I intend to find out. When I woke, I was all alone... Until I met you two months ago.- You")
+    sp("How many years ago was it? I don't know... But I intend to find out. When I woke, I was all alone... Right up until I met you two months ago.- You")
     if sibling == "Aether":
         sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-9.mp3")
         sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-10.mp3")
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Lumine-11.mp3")
     elif sibling == "Lumine":
-        
-        pass
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-9.mp3")
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-10.mp3")
+        sound("https://coolpython53.github.io/prologue-assets/wanderer's-trail/Aether-11.mp3")
     stop_music()
-    sp("Yeah, Paimon really owes you for that. Otherwise Paimon might have drowned... - Paimon")
-    sp("So Paimon will do her best to be a great guide! - Paimon")
-    sp("We should head off. Let's get going! - Paimon")
+    sp("Yeah, Paimon really owes you for that. Otherwise Paimon likely would have drowned... - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Paimon-12.mp3")
+    sp("So Paimon will do her best to be a great guide! - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Paimon-13.mp3")
+    sp("We should head off. Let's get going! - Paimon", "https://coolpython53.github.io/prologue-assets/wanderer's-trail/Paimon-14.mp3")
     nxt()
 
 #Bird's eye view (The outlander who caught wind)
