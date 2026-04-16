@@ -3,369 +3,212 @@ import textwrap
 import random
 import json
 import threading
-import os
-import webbrowser
 import logging
 from flask import Flask
+
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
-
-# =========================
-# GLOBAL VARIABLES
-# =========================
-character = ""
-sibling = ""
-result = 0
-usedElementalSkill = "False"
-elementalParticles = 0
-enemyHP = 0
-health = 100
-level = 1
-xp = 0
-food_inventory = []
-inventory = []
-max_attk = 10
-defense = 5
-mora = 0
-story_progress = 0
-paimon_trust = 100
-sound_enabled = False
-bridge_opened = False
-
-# =========================
-# 🎧 AUDIO BRIDGE SYSTEM
-# =========================
-
 
 app = Flask(__name__)
 
 # =========================
-# 🔊 SFX SYSTEM (voice / effects)
+# GAME STATE
 # =========================
-audio_event = threading.Event()
+game_state = {
+    "mode": "idle",   # idle | text | choice
+    "text": "",
+    "options": 0,
+    "result": None
+}
 
-current_audio = {
-    "url": None,
-    "ready": False
+choice_event = threading.Event()
+
+# =========================
+# CORE PLAYER DATA
+# =========================
+player = {
+    "hp": 100,
+    "max_hp": 100,
+    "attack": 10,
+    "defense": 5,
+    "xp": 0,
+    "level": 1,
+    "inventory": []
+}
+
+enemy = {
+    "hp": 0,
+    "attack": 0
 }
 
 # =========================
-# 🎵 MUSIC SYSTEM (background layer)
+# WEB UI
 # =========================
-current_music = {
-    "url": None,
-    "playing": False,
-    "loop": True
-}
-
-# =========================
-# 🌐 FLASK ROUTES
-# =========================
-
 @app.route("/")
 def index():
     return """
-    <html>
-    <body style="background:#111;color:white;text-align:center;padding-top:20vh;font-family:sans-serif;">
+<html>
+<body style="background:#111;color:white;text-align:center;font-family:sans-serif;padding-top:8vh;">
 
-        <div id="setup">
-            <h2 style="color:#ffd452;">Audio Bridge</h2>
-            <button id="startBtn"
-                style="padding:15px 40px;font-size:20px;cursor:pointer;background:#4a90e2;color:white;border:none;border-radius:5px;">
-                Connect Audio
-            </button>
-        </div>
+<h2 id="text">Loading...</h2>
 
-        <div id="activeMsg" style="display:none;">
-            <h2>🔊 Audio Active</h2>
-            <p>Keep this tab open.</p>
-        </div>
+<div id="buttons"></div>
 
-        <audio id="sfxPlayer"></audio>
-        <audio id="musicPlayer"></audio>
+<script>
+async function loop() {
+    const res = await fetch("/state");
+    const data = await res.json();
 
-        <script>
-            const sfxPlayer = document.getElementById('sfxPlayer');
-            const musicPlayer = document.getElementById('musicPlayer');
+    document.getElementById("text").innerText = data.text || "";
 
-            const startBtn = document.getElementById('startBtn');
-            const setup = document.getElementById('setup');
-            const activeMsg = document.getElementById('activeMsg');
+    const btnDiv = document.getElementById("buttons");
+    btnDiv.innerHTML = "";
 
-            startBtn.onclick = () => {
-                setup.style.display = 'none';
-                activeMsg.style.display = 'block';
+    if (data.mode === "choice") {
+        for (let i = 1; i <= data.options; i++) {
+            const b = document.createElement("button");
+            b.innerText = "Option " + i;
+            b.style = "padding:10px;margin:5px;font-size:16px;";
+            b.onclick = () => fetch("/choose/" + i);
+            btnDiv.appendChild(b);
+        }
+    }
 
-                sfxPlayer.play().catch(() => {});
-                musicPlayer.play().catch(() => {});
+    setTimeout(loop, 200);
+}
+loop();
+</script>
 
-                checkSFX();
-                checkMusic();
-            };
-
-            // =========================
-            // 🔊 SFX LOOP
-            // =========================
-            async function checkSFX() {
-                try {
-                    const res = await fetch('/get_next_audio');
-                    const data = await res.json();
-
-                    if (data.url) {
-                        sfxPlayer.src = data.url;
-                        sfxPlayer.play();
-                        sfxPlayer.onended = () => fetch('/mark_done');
-                    }
-                } catch (e) {}
-
-                setTimeout(checkSFX, 300);
-            }
-
-            // =========================
-            // 🎵 MUSIC LOOP
-            // =========================
-            async function checkMusic() {
-                try {
-                    const res = await fetch('/get_music');
-                    const data = await res.json();
-
-                    if (data.url) {
-                        if (musicPlayer.src !== data.url) {
-                            musicPlayer.src = data.url;
-                            musicPlayer.loop = data.loop;
-                            musicPlayer.play().catch(() => {});
-                        }
-                    } else {
-                        musicPlayer.pause();
-                        musicPlayer.src = "";
-                    }
-                } catch (e) {}
-
-                setTimeout(checkMusic, 1000);
-            }
-        </script>
-
-    </body>
-    </html>
-    """
-
+</body>
+</html>
+"""
 
 # =========================
-# 🔊 SFX ROUTES
+# STATE API
 # =========================
+@app.route("/state")
+def state():
+    return json.dumps(game_state)
 
-@app.route("/get_next_audio")
-def get_next_audio():
-    global current_audio
-    if current_audio["ready"] and current_audio["url"]:
-        url = current_audio["url"]
-        current_audio["ready"] = False
-        return json.dumps({"url": url})
-    return json.dumps({"url": None})
-
-
-@app.route("/mark_done")
-def mark_done():
-    audio_event.set()
+@app.route("/choose/<int:option>")
+def choose(option):
+    game_state["result"] = option
+    game_state["mode"] = "idle"
+    choice_event.set()
     return "ok"
 
+# =========================
+# ENGINE CORE
+# =========================
+def show(text):
+    wrapped = textwrap.fill(text, 70)
+    game_state["text"] = wrapped
+    game_state["mode"] = "text"
+    print(wrapped)
+
+def choice(options):
+    game_state["mode"] = "choice"
+    game_state["options"] = options
+    game_state["result"] = None
+
+    choice_event.clear()
+    choice_event.wait()
+
+    return game_state["result"]
+
+def wait(t=0.3):
+    time.sleep(t)
 
 # =========================
-# 🎵 MUSIC ROUTE
+# COMBAT ENGINE (GENERIC)
 # =========================
+def level_up():
+    while player["xp"] >= 100:
+        player["xp"] -= 100
+        player["level"] += 1
+        player["attack"] += 2
+        player["max_hp"] += 10
+        player["hp"] = player["max_hp"]
+        show(f"LEVEL UP → {player['level']}")
 
-@app.route("/get_music")
-def get_music():
-    global current_music
-    if current_music["playing"] and current_music["url"]:
-        return json.dumps({
-            "url": current_music["url"],
-            "loop": current_music["loop"]
-        })
-    return json.dumps({"url": None, "loop": False})
+def fight(enemy_hp, enemy_attack):
+    enemy["hp"] = enemy_hp
+    enemy["attack"] = enemy_attack
 
+    show("Battle started!")
 
-# =========================
-# 🎧 PYTHON AUDIO FUNCTIONS
-# =========================
+    while enemy["hp"] > 0 and player["hp"] > 0:
 
-def play_sound_and_wait(url):
-    """Blocking SFX (voice lines / effects)."""
-    if not sound_enabled:
-        return
-    current_audio["url"] = url
-    current_audio["ready"] = True
-    audio_event.clear()
-    audio_event.wait(timeout=60)
+        show(
+            f"HP {player['hp']}/{player['max_hp']} | "
+            f"Enemy {enemy['hp']}"
+        )
 
+        show("1 Attack | 2 Defend | 3 Heal")
+        c = choice(3)
 
-def sound(url):
-    play_sound_and_wait(url)
+        if c == 1:
+            dmg = random.randint(player["attack"] - 3, player["attack"])
+            enemy["hp"] -= dmg
 
+        elif c == 2:
+            dmg = max(1, enemy["attack"] // 2)
+            player["hp"] -= dmg
 
+        elif c == 3:
+            heal = random.randint(10, 25)
+            player["hp"] = min(player["max_hp"], player["hp"] + heal)
 
-# =========================
-# 🎵 MUSIC CONTROL API
-# =========================
+        if enemy["hp"] > 0:
+            dmg = max(1, enemy["attack"] - player["defense"])
+            player["hp"] -= dmg
 
-def music(url, loop=True):
-    if sound_enabled:
-        """Start background music (non-blocking)."""
-        global current_music
-        current_music["url"] = url
-        current_music["playing"] = True
-        current_music["loop"] = loop
-
-
-def stop_music():
-    if sound_enabled:
-        """Stop background music."""
-        global current_music
-        current_music["playing"] = False
-        current_music["url"] = None
-# =========================
-# CORE UTILITIES
-# =========================
-
-def w(seconds=0.5):
-    """Wait for a brief moment."""
-    time.sleep(seconds)
-
-def sp(text, play_url=None, speed=0.03, width=50, wait=1):
-    """Prints scrolling text and plays audio if a URL is provided."""
-    wrapped_text = textwrap.fill(text, width=width)
-    if play_url and sound_enabled:
-        threading.Thread(target=play_sound_and_wait, args=(play_url,), daemon=True).start()
-    for line in wrapped_text.split("\n"):
-        for char in line:
-            print(char, end="", flush=True)
-            time.sleep(speed)
-        print()
-    if play_url and sound_enabled:
-        audio_event.wait(timeout=60)
-    if wait == 1: time.sleep(0.25)
-    print()
-
-def selection(options):
-    """Handles user input and menus."""
-    global result
-    while True:
-        user_input = input(">> ").strip().lower()
-        if user_input == "save": 
-            save_game()
-            continue
-        try:
-            result = int(user_input)
-            if 1 <= result <= options: return
-        except: print("Enter a number.")
-
-def save_game():
-    """Placeholder for save logic."""
-    print("\n--- GAME SAVED ---")
-    print(f"Character: {character} | Level: {level} | Progress: {story_progress}\n")
-
-def lvl_up():
-    """Handles leveling up attributes."""
-    global xp, level, max_attk, health, defense
-    while xp >= 1000:
-        level += 1; max_attk += 5; health += 20; defense += 5; xp -= 1000
-        print(f"\n✨ LEVEL UP! Level {level} ✨")
-
-def fight(EHP, EDM):
-    """The combat engine."""
-    global health, enemyHP, elementalParticles, usedElementalSkill, xp
-    enemyHP = EHP
-    usedElementalSkill = "False"
-    while enemyHP > 0 and health > 0:
-        print(f"\nHP: {health} | Enemy: {enemyHP} | Particles: {elementalParticles}")
-        print("1. Attack | 2. Skill | 3. Burst | 4. Food")
-        selection(4)
-        if result == 1: 
-            dmg = random.randint(max_attk-3, max_attk)
-            print(f"You hit for {dmg}!")
-            enemyHP -= dmg
-        elif result == 2:
-            if usedElementalSkill == "False":
-                print("Elemental Skill!")
-                enemyHP -= (max_attk + 30); elementalParticles += 20; usedElementalSkill = "True"
-            else: print("On cooldown!"); continue
-        elif result == 3:
-            if elementalParticles >= 60:
-                print("ELEMENTAL BURST!")
-                enemyHP -= (max_attk + 60); elementalParticles -= 60
-            else: print("Not enough energy!"); continue
-        elif result == 4:
-            if not eat_food(): continue
-        
-        if enemyHP > 0:
-            dmg = max(1, random.randint(EDM - (defense * 2), EDM - defense))
-            health -= dmg
-            print(f"Enemy hit you for {dmg}!")
-
-    if health <= 0:
-        print("Defeated..."); health = 100; fight(EHP, EDM)
+    if player["hp"] <= 0:
+        player["hp"] = player["max_hp"]
+        show("You were defeated...")
     else:
-        print("Victory!")
-        xp += EHP; lvl_up()
+        show("Enemy defeated!")
+        player["xp"] += enemy_hp
+        level_up()
 
-def add_food(name, amount, heal):
-    """Add items to the food bag."""
-    food_inventory.append({"name": name, "amount": amount, "heal": heal})
+# =========================
+# INVENTORY SYSTEM
+# =========================
+def add_item(item):
+    player["inventory"].append(item)
 
-def eat_food():
-    """Healing logic."""
-    global health
-    if not food_inventory: 
-        print("No food!")
+def use_item():
+    if not player["inventory"]:
         return False
-    for i, f in enumerate(food_inventory, 1): print(f"{i}. {f['name']} x{f['amount']}")
-    selection(len(food_inventory))
-    f = food_inventory[result-1]
-    health += f['heal']; f['amount'] -= 1
-    if f['amount'] <= 0: food_inventory.remove(f)
-    return True
 
-def nxt():
-    """Advance story marker."""
-    global story_progress
-    story_progress += 1
+    show("Choose item:")
+    c = choice(len(player["inventory"]))
+    item = player["inventory"][c - 1]
+    player["inventory"].remove(item)
+    return item
 
 # =========================
-# MAIN BOOTSTRAP
+# YOUR GAME ENTRY POINT
 # =========================
+def game():
+    show("ENGINE READY")
+    wait()
 
-def main():
-    global sound_enabled, character, sibling
-    print("--- GENSHIN IMPACT: TEXT ADVENTURE ---")
-    print("1. New Game | 2. Load Game")
-    selection(2)
-    if result == 1:
-        print("\nEnable Sound?\n1. Yes | 2. No")
-        selection(2)
-        if result == 1:
-            sound_enabled = True
-            webbrowser.open("http://127.0.0.1:5000")
-            print("Did it open?")
-            print("1. Yes")
-            selection(1)
-            if result == 1:
-                pass
-            elif result == 2:
-                sound_enabled = False
-                print("Sound turned off")
-            time.sleep(2)
-        
-        sp("Pick your character: 1. Aether | 2. Lumine")
-        selection(2)
-        character = "Aether" if result == 1 else "Lumine"
-        sibling = "Lumine" if result == 1 else "Aether"
+    while True:
+        show("Main Menu")
+        show("1 Explore | 2 Fight Test | 3 Exit")
+        c = choice(3)
 
-    # Chapter List for progression
-    chapters = [#P1, 
-                P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16, P17]
-    
-    for i in range(story_progress, len(chapters)):
-        chapters[i]()
+        if c == 1:
+            show("You explore the world...")
+            wait()
+
+        elif c == 2:
+            fight(80, 12)
+
+        elif c == 3:
+            show("Stopping engine...")
+            break
 
 
 def P1():
@@ -673,12 +516,18 @@ def P17():
     sp("If it weren't for this interference, the Knights of Favonius would have better ways to help you than just putting up missing person posters. We simply ask that you repose in Mondstadt while we help you seek out your sibling. - Jean")
     sp("1. I really should help as well.")
     sp("2. Guess we'll leave it up to you then.")
+# =========================
+# START SERVER + GAME THREAD
+# =========================
 if __name__ == "__main__":
-    # start Flask FIRST in background thread
     threading.Thread(
-        target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False),
+        target=lambda: app.run(
+            host="0.0.0.0",
+            port=5000,
+            debug=False,
+            use_reloader=False
+        ),
         daemon=True
     ).start()
 
-    # run game in MAIN thread (so input() works)
-    main()
+    game()
