@@ -408,9 +408,9 @@ def P2():
     sp("Oh wowwwww! That's a statue of the seven! There are a few of those statues scattered across the land to show The Seven's protection over the world. - Paimon", "https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-1.mp3")
     sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-2.mp3")
     sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-2.5.ogg")
-    sp("Among the gods, this one controls the wind. Paimon's not sure whether the god you're looking for is the Anemo God, but... - Paimon")
-    sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-3.ogg")
-    sp("Paimon'll take you to the Anemo God's place first! - Paimon")
+    sp("Among the gods, this one controls the wind. Paimon's not sure whether the god you're looking for is the Anemo God, but... - Paimon", "https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-3.mp3")
+    sound("https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-4.ogg")
+    sp("Paimon'll take you to the Anemo God's place first, and there's a reason why! - Paimon", "https://coolpython53.github.io/prologue-assets/Bird's-Eye-View/Paimon-5.ogg")
     stop_music()
     nxt()
 
